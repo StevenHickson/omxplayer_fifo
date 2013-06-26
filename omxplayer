@@ -1,0 +1,42 @@
+#!/bin/bash
+
+OMXFIFO="/dev/shm/omxfifo"
+
+if [ ! -e $OMXFIFO ] ; then
+    mkfifo $OMXFIFO
+fi
+
+omxplayer.sh "$@" < $OMXFIFO &
+pid=$!
+#cat $OMXFIFO &
+sleep 1
+echo . > $OMXFIFO
+
+special_key=0
+escape_key=0
+result=`ps -p "$pid" | grep -v "PID"`
+while [ "$result" != "" ]
+do
+    read -n1 -t 1 -s INPUT
+    if [ "$INPUT" == "" ] ; then
+	special_key=1
+    elif [ $special_key == 1 ] ; then
+	if [ "$INPUT" == "[" ] ; then
+	    escape_key=1
+	elif [ "$INPUT" != "[" ] && [ $escape_key == 1 ] ; then
+	    echo -n "[$INPUT" > $OMXFIFO
+	    special_key=0
+	    escape_key=0
+	else
+	    echo -n "" > $OMXFIFO
+    	    if [ "$INPUT" != "" ] ; then
+	        echo -n "$INPUT" > $OMXFIFO
+	    fi
+	    special_key=0
+	fi
+    elif [ "$INPUT" != "" ] ; then
+        echo -n "$INPUT" > $OMXFIFO
+    fi
+    result=`ps -p "$pid" | grep -v "PID"`
+done
+rm $OMXFIFO
